@@ -1,0 +1,10 @@
+{
+  "description": "Track and analyze simulated trading performance with real-time data, historical validation, and comprehensive analytics for traders and researchers.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

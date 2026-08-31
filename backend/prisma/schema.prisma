@@ -1,0 +1,429 @@
+// ALPHAQUANT X — Database schema
+// Spec sections 10-13, 43-50, 63-64, 71, 84, 108
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   @default("ADMIN") // ADMIN, SUPERADMIN
+  createdAt    DateTime @default(now())
+  lastLoginAt  DateTime?
+
+  auditLogs AuditLog[]
+
+  @@map("admin_users")
+}
+
+// ---------------------------------------------------------------------------
+// Trades
+// ---------------------------------------------------------------------------
+
+enum Direction {
+  LONG
+  SHORT
+}
+
+enum TradeStatus {
+  DRAFT
+  PUBLISHED
+  WAITING_ENTRY
+  OPEN
+  TP1_HIT
+  TP2_HIT
+  TP3_HIT
+  TP4_HIT
+  STOP_HIT
+  CLOSED
+  EXPIRED
+  CANCELLED
+  AMBIGUOUS
+  INSUFFICIENT_DATA
+}
+
+enum VerificationStatus {
+  VERIFIED
+  PARTIALLY_VERIFIED
+  AMBIGUOUS
+  INSUFFICIENT_DATA
+}
+
+enum TradeSource {
+  LIVE
+  HISTORICAL
+  PAPER
+}
+
+model Trade {
+  id       String      @id @default(cuid())
+  asset    String
+  symbol   String
+  direction Direction
+  status   TradeStatus @default(DRAFT)
+  source   TradeSource @default(LIVE)
+  isPublic Boolean     @default(true)
+
+  entryPrice   Float
+  exitPrice    Float?
+  currentPrice Float?
+  stopPrice    Float
+  tp1          Float
+  tp2          Float?
+  tp3          Float?
+  tp4          Float?
+
+  margin      Float
+  leverage    Float
+  notional    Float
+  riskAmount  Float?
+  riskPct     Float?
+
+  priceChangePct    Float?
+  tradeRoiPct       Float?
+  pnlUsd            Float?
+  accountImpactPct  Float?
+  rMultiple         Float?
+
+  realizedPnlUsd   Float? @default(0)
+  unrealizedPnlUsd Float? @default(0)
+
+  entryFee  Float? @default(0)
+  exitFee   Float? @default(0)
+  funding   Float? @default(0)
+  slippage  Float? @default(0)
+
+  strategyId   String?
+  strategy     Strategy? @relation(fields: [strategyId], references: [id])
+  strategyName String    // denormalized label, kept even if Strategy row is removed
+  playbook     String?
+  timeframe    String
+  score        Float?
+  confidence   Float?
+  reason       String?
+  invalidation String?
+
+  createdAt   DateTime  @default(now())
+  publishedAt DateTime?
+  entryAt     DateTime?
+  closedAt    DateTime?
+
+  exitReason         String?
+  verificationStatus VerificationStatus?
+  notes              String?
+
+  tp1Hit Boolean @default(false)
+  tp2Hit Boolean @default(false)
+  tp3Hit Boolean @default(false)
+  tp4Hit Boolean @default(false)
+
+  equityBefore Float? // account equity snapshot at trade open, used for account impact
+
+  events    TradeEvent[]
+  auditLogs AuditLog[]
+
+  @@index([status])
+  @@index([asset])
+  @@index([createdAt])
+  @@index([publishedAt])
+  @@index([closedAt])
+  @@index([strategyId])
+  @@index([timeframe])
+  @@map("trades")
+}
+
+enum TradeEventType {
+  TRADE_CREATED
+  CALL_PUBLISHED
+  ENTRY_REACHED
+  TP1_HIT
+  TP2_HIT
+  TP3_HIT
+  TP4_HIT
+  STOP_HIT
+  SL_UPDATED
+  TP_UPDATED
+  POSITION_UPDATED
+  TRADE_CLOSED
+  TRADE_CANCELLED
+  TRADE_EXPIRED
+  TRADE_REOPENED
+  HISTORICAL_VALIDATED
+  HISTORICAL_AMBIGUOUS
+}
+
+// Append-only. Never deleted or overwritten (spec section 13/14).
+model TradeEvent {
+  id        String         @id @default(cuid())
+  tradeId   String
+  trade     Trade          @relation(fields: [tradeId], references: [id])
+  eventType TradeEventType
+  timestamp DateTime       @default(now())
+  metadata  Json?
+  actor     String? // "system" | "monitoring-engine" | admin user id
+  source    String?
+
+  @@index([tradeId])
+  @@index([eventType])
+  @@map("trade_events")
+}
+
+// ---------------------------------------------------------------------------
+// Strategy / Playbook / Research
+// ---------------------------------------------------------------------------
+
+model Strategy {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  category    String?
+  description String?
+  rulesJson   Json? // condition set used by strategy parser / backtest engine
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  trades     Trade[]
+  backtests  Backtest[]
+
+  @@map("strategies")
+}
+
+// ---------------------------------------------------------------------------
+// Performance snapshots (pre-aggregated, spec section 76: avoid recompute)
+// ---------------------------------------------------------------------------
+
+enum PerformancePeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  ALL_TIME
+}
+
+model PerformanceSnapshot {
+  id                String            @id @default(cuid())
+  period            PerformancePeriod
+  periodStart       DateTime
+  periodEnd         DateTime
+  startingCapital   Float
+  finalCapital      Float
+  totalPnlUsd       Float
+  totalReturnPct    Float
+  totalTrades       Int
+  winningTrades     Int
+  losingTrades      Int
+  winRatePct        Float
+  profitFactor      Float?
+  payoff            Float?
+  expectancy        Float?
+  avgTradePnlUsd    Float
+  avgTradePct       Float
+  avgWinnerUsd      Float
+  avgLoserUsd       Float
+  maxDrawdownUsd    Float
+  maxDrawdownPct    Float
+  avgR              Float?
+  largestWinUsd     Float
+  largestLossUsd    Float
+  totalFeesUsd      Float
+  totalSlippageUsd  Float
+  computedAt        DateTime          @default(now())
+
+  @@unique([period, periodStart])
+  @@index([period])
+  @@map("performance_snapshots")
+}
+
+// Running equity curve points, used for the public equity chart (section 51)
+model EquityPoint {
+  id        String   @id @default(cuid())
+  timestamp DateTime @default(now())
+  equity    Float
+  highWaterMark Float
+
+  @@index([timestamp])
+  @@map("equity_points")
+}
+
+// ---------------------------------------------------------------------------
+// Backtesting
+// ---------------------------------------------------------------------------
+
+model Backtest {
+  id              String   @id @default(cuid())
+  strategyId      String?
+  strategy        Strategy? @relation(fields: [strategyId], references: [id])
+  asset           String
+  timeframe       String
+  periodStart     DateTime
+  periodEnd       DateTime
+  startingCapital Float
+  riskPct         Float
+  leverage        Float
+  feesPct         Float    @default(0)
+  slippagePct     Float    @default(0)
+
+  finalCapital   Float?
+  totalPnlUsd    Float?
+  totalReturnPct Float?
+  totalTrades    Int?
+  winRatePct     Float?
+  profitFactor   Float?
+  expectancy     Float?
+  avgR           Float?
+  maxDrawdownPct Float?
+
+  status    String   @default("PENDING") // PENDING, RUNNING, COMPLETE, FAILED
+  error     String?
+  createdAt DateTime @default(now())
+  completedAt DateTime?
+
+  trades BacktestTrade[]
+
+  @@map("backtests")
+}
+
+model BacktestTrade {
+  id          String    @id @default(cuid())
+  backtestId  String
+  backtest    Backtest  @relation(fields: [backtestId], references: [id])
+  direction   Direction
+  entryPrice  Float
+  exitPrice   Float?
+  stopPrice   Float
+  tp1         Float
+  entryTime   DateTime
+  exitTime    DateTime?
+  pnlUsd      Float?
+  roiPct      Float?
+  rMultiple   Float?
+  exitReason  String?
+
+  @@index([backtestId])
+  @@map("backtest_trades")
+}
+
+// ---------------------------------------------------------------------------
+// Paper trading
+// ---------------------------------------------------------------------------
+
+model PaperAccount {
+  id              String   @id @default(cuid())
+  name            String   @default("default")
+  startingBalance Float    @default(10000)
+  balance         Float
+  createdAt       DateTime @default(now())
+
+  positions PaperPosition[]
+  orders    PaperOrder[]
+
+  @@map("paper_accounts")
+}
+
+enum PaperPositionStatus {
+  OPEN
+  CLOSED
+}
+
+model PaperPosition {
+  id             String              @id @default(cuid())
+  accountId      String
+  account        PaperAccount        @relation(fields: [accountId], references: [id])
+  asset          String
+  direction      Direction
+  entryPrice     Float
+  currentPrice   Float?
+  exitPrice      Float?
+  margin         Float
+  leverage       Float
+  notional       Float
+  stopPrice      Float?
+  tpPrice        Float?
+  status         PaperPositionStatus @default(OPEN)
+  pnlUsd         Float?
+  roiPct         Float?
+  rMultiple      Float?
+  accountImpactPct Float?
+  openedAt       DateTime            @default(now())
+  closedAt       DateTime?
+
+  @@index([accountId])
+  @@index([status])
+  @@map("paper_positions")
+}
+
+enum PaperOrderType {
+  MARKET
+  LIMIT
+  STOP
+}
+
+model PaperOrder {
+  id        String         @id @default(cuid())
+  accountId String
+  account   PaperAccount   @relation(fields: [accountId], references: [id])
+  asset     String
+  direction Direction
+  orderType PaperOrderType
+  price     Float?
+  quantity  Float
+  status    String         @default("PENDING") // PENDING, FILLED, CANCELLED
+  createdAt DateTime       @default(now())
+  filledAt  DateTime?
+
+  @@index([accountId])
+  @@map("paper_orders")
+}
+
+// ---------------------------------------------------------------------------
+// System health / observability
+// ---------------------------------------------------------------------------
+
+enum HealthStatus {
+  ONLINE
+  DEGRADED
+  OFFLINE
+}
+
+model SystemHealth {
+  id                   String       @id @default(cuid())
+  service              String       @unique // "api" | "database" | "market_data" | "monitoring" | "worker"
+  status               HealthStatus @default(ONLINE)
+  lastSuccessfulUpdate DateTime?
+  lastError            String?
+  lastErrorAt          DateTime?
+  updatedAt            DateTime     @updatedAt
+
+  @@map("system_health")
+}
+
+// ---------------------------------------------------------------------------
+// Audit log (admin actions — spec section 62/108)
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  actorId    String
+  actor      AdminUser @relation(fields: [actorId], references: [id])
+  action     String // e.g. "ADMIN_CREATED_CALL", "ADMIN_UPDATED_STOP"
+  tradeId    String?
+  trade      Trade?    @relation(fields: [tradeId], references: [id])
+  oldValue   Json?
+  newValue   Json?
+  timestamp  DateTime  @default(now())
+
+  @@index([tradeId])
+  @@index([actorId])
+  @@map("audit_logs")
+}

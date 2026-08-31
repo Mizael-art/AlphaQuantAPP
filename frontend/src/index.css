@@ -1,0 +1,244 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import 'tailwindcss';
+
+/* ============================================================
+   THEME SYSTEM
+   [data-theme] switches dark/light. [data-accent] switches the
+   brand accent color. Components reference these via var(--x)
+   instead of hardcoded hex, so switching either attribute on
+   <html> re-themes the whole app live, no reload needed.
+   ============================================================ */
+:root,
+[data-theme="dark"] {
+  --bg-app: #080808;
+  --bg-secondary: #0D0D0D;
+  --bg-panel: #111111;
+  --bg-card: #151515;
+  --bg-card-hover: #1B1B1B;
+  --border: #272727;
+  --text-bright: #F5F5F5;
+  --text-primary: #D7D7D7;
+  --text-muted: #858585;
+  --profit: #26A69A;
+  --loss: #EF5350;
+  --breakeven: #A0A0A0;
+  --warning: #C9A227;
+  --shadow: rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="light"] {
+  --bg-app: #F6F6F4;
+  --bg-secondary: #FFFFFF;
+  --bg-panel: #FFFFFF;
+  --bg-card: #F1F1EE;
+  --bg-card-hover: #E9E9E5;
+  --border: #E1E1DC;
+  --text-bright: #101010;
+  --text-primary: #2B2B29;
+  --text-muted: #6B6B67;
+  --profit: #1B8E7D;
+  --loss: #D64545;
+  --breakeven: #757570;
+  --warning: #A6791E;
+  --shadow: rgba(0, 0, 0, 0.08);
+}
+
+/* Accent (brand) color variants — independent of light/dark */
+:root,
+[data-accent="gold"] {
+  --accent: #D4AF37;
+  --accent-bright: #E6C65C;
+  --accent-dark: #9B7A18;
+}
+[data-accent="blue"] {
+  --accent: #4A90D9;
+  --accent-bright: #6FADEF;
+  --accent-dark: #2E5F94;
+}
+[data-accent="green"] {
+  --accent: #3FAE72;
+  --accent-bright: #5FCB8E;
+  --accent-dark: #297A4E;
+}
+[data-accent="purple"] {
+  --accent: #9B6FD9;
+  --accent-bright: #B693EE;
+  --accent-dark: #6B49A0;
+}
+[data-accent="rose"] {
+  --accent: #D96F9B;
+  --accent-bright: #EE93B9;
+  --accent-dark: #A0496F;
+}
+
+@theme {
+  --color-bg: var(--bg-app);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-panel: var(--bg-panel);
+  --color-card: var(--bg-card);
+  --color-card-hover: var(--bg-card-hover);
+  --color-border: var(--border);
+  --color-gold: var(--accent);
+  --color-gold-bright: var(--accent-bright);
+  --color-gold-dark: var(--accent-dark);
+  --color-white: var(--text-bright);
+  --color-off-white: var(--text-primary);
+  --color-muted: var(--text-muted);
+  --color-profit: var(--profit);
+  --color-loss: var(--loss);
+  --color-breakeven: var(--breakeven);
+  --color-warning: var(--warning);
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  color-scheme: dark;
+}
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--bg-app);
+  color: var(--text-bright);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* Tabular numbers for data */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Live pulse */
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.pulse-live {
+  animation: pulse-live 2s ease-in-out infinite;
+}
+
+/* Number flash */
+@keyframes flash-green {
+  0% { color: var(--profit); }
+  100% { color: inherit; }
+}
+@keyframes flash-red {
+  0% { color: var(--loss); }
+  100% { color: inherit; }
+}
+
+/* Fade in */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Slide in from right */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.slide-in-right {
+  animation: slideInRight 0.25s ease-out;
+}
+
+/* Gold gradient text */
+.gold-text {
+  background: linear-gradient(135deg, var(--accent), var(--accent-bright));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Table styles */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.profit { color: var(--profit); }
+.loss { color: var(--loss); }
+.neutral { color: var(--breakeven); }
+
+/* Selection */
+::selection {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--text-bright);
+}
+
+/* Mobile: shrink base font slightly and ensure wide tables scroll instead of overflowing the page */
+@media (max-width: 640px) {
+  body { font-size: 13px; }
+  table { min-width: 560px; }
+}
+
+/* Responsive form grids — used by admin forms (Publish Call, Log Closed Trade, etc.)
+   so their 2-3 column layouts collapse to a single column on phones instead of
+   squeezing every field into a sliver of the screen. */
+.aq-form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.aq-form-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 640px) {
+  .aq-form-grid-2,
+  .aq-form-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+.aq-page-padding {
+  padding: 24px;
+}
+@media (max-width: 640px) {
+  .aq-page-padding {
+    padding: 14px;
+  }
+}
